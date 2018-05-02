@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import http
 import socket
 import struct
 import logging
+from io import BytesIO
+from http.client import HTTPResponse
+from http.server import BaseHTTPRequestHandler
 
 
 logger = logging.getLogger(__name__)
@@ -98,7 +102,8 @@ class IPv4Packet(Packet):
             logger.info("TCP: source port: %d destination: %d",
                         self.body.source, self.body.destination)
             if self.body.source == 80 or self.body.destination == 80:
-                logger.info("TCP body: %s", self.body)
+                # logger.info("TCP body: %s", self.body.body)
+                pass
             return
         elif self.protocol == 0x11:
             # UDP
@@ -123,7 +128,44 @@ class TCPPacket(Packet):
         return cls(source=source, destination=destination, sequence=sequence,
                    ack=ack, offset=offset, ns=ns, flags=flags,
                    window_size=window_size, checksum=checksum, urgent=urgent,
-                   body=raw[offset * 4:])
+                   raw_body=raw[offset * 4:])
+
+    def parse_body(self):
+        if self.raw_body.startswith(b"HTTP/1.1"):
+            self.body = HTTPResponsePacket(self.raw_body)
+        elif True in [self.raw_body.startswith(verb) for verb in HTTP_VERBS]:
+            self.body = HTTPRequestPacket(self.raw_body)
+        else:
+            self.body = self.raw_body
+
+
+HTTP_VERBS = [b"GET", b"POST", b"PUT", b"HEAD", b"DELETE"]
+
+
+class HTTPRequestPacket(BaseHTTPRequestHandler):
+    def __init__(self, raw):
+        self.rfile = BytesIO(raw)
+        self.raw_requestline = self.rfile.readline()
+        self.error_code = self.error_message = None
+        self.parse_request()
+
+    def send_error(self, code, message):
+        self.error_code = code
+        self.error_message = message
+
+
+class HTTPResponsePacket(HTTPResponse):
+    def makefile(self, mode):
+        return None
+
+    def __init__(self, raw):
+        super(HTTPResponsePacket, self).__init__(self)
+        self.fp = BytesIO(raw)
+        self.begin()
+        try:
+            self.body = self.read()
+        except http.client.IncompleteRead as e:
+            self.body = e.partial
 
 
 class ICMPPacket(Packet):
