@@ -1,48 +1,59 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import click
 import pcapy
-import socket
-import struct
 import logging
+import bencoder
+from packets import EthernetPacket, Ipv4Packet
 
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format="%(asctime)s %(name)s[%(process)d] %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def main(device="en0"):
-    reader = pcapy.open_live(device, 65536, 0, 0)
-    logger.info("Sniffing on %s", device)
-    while True:
-        (header, packet) = reader.next()
-        logger.info("captured %s bytes, truncated %s bytes",
-                    header.getlen(), header.getcaplen())
+def parse_packet(packet):
+    (ethernet, packet) = EthernetPacket.parse(packet)
+
+    if ethernet.protocol != 8:
+        return
+
+    (ip, packet) = Ipv4Packet.parse(packet)
+
+    logger.info("version: %d, header length: %d, protocol: %d, source: %s, dest: %s",
+                ip.version, ip.length, ip.protocol, ip.source, ip.destination)
+    logger.info("packet length: %d", ip.packet_length)
+
+
+def parse_dump_file(dump):
+    # TODO: need to replace bencode as it requires reading the whole dump file
+    # into memeory.
+    content = b"l" + dump.read() + b"e"
+    packets = bencoder.decode(content)
+
+    for packet in packets:
         parse_packet(packet)
 
 
-def convert_mac(data):
-    return ":".join(["{:02x}"] * 6).format(*data)
+@click.command()
+@click.option("--device", "-d", default="en0", help="network device you want to sniff at")
+@click.option("--dump", type=click.File("wb"), help="dump traffic to this file")
+@click.option("--load", type=click.File("rb"), help="traffic dump file to load")
+def main(device, dump, load):
+    if load:
+        return parse_dump_file(load)
+
+    reader = pcapy.open_live(device, 65536, 0, 0)
+    logger.info("Sniffing on %s", device)
+
+    while True:
+        (header, packet) = reader.next()
+        logger.debug("captured %s bytes, truncated %s bytes, real length %s",
+                     header.getlen(), header.getcaplen(), len(packet))
+        if dump:
+            dump.write(bencoder.encode(packet))
+        parse_packet(packet)
 
 
-def parse_packet(packet):
-    eth = struct.unpack('!6s6sH', packet[:14])
-    protocol = socket.ntohs(eth[2])
-    logger.info("dest: %s, source: %s protocol: %d",
-                convert_mac(packet[:6]), convert_mac(packet[6:12]), protocol)
-
-    if protocol != 8:
-        return
-
-    ip_header = struct.unpack('!BBHHHBBH4s4s', packet[14:34])
-    version = ip_header[0] >> 4
-    length = (ip_header[0] & 0xF) * 4
-    source = socket.inet_ntoa(ip_header[8])
-    dest = socket.inet_ntoa(ip_header[9])
-
-    logger.info("version: %d, header length: %d, protocol: %d, source: %s, dest: %s",
-                version, length, protocol, source, dest)
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     exit(main())
