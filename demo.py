@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 
-import sys
 import click
 import pcapy
 import logging
 import bencoder
+import coloredlogs
 from packets import EthernetPacket, Ipv4Packet
 
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format="%(asctime)s %(name)s[%(process)d] %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
+coloredlogs.install(level="DEBUG")
 
 
 def parse_packet(packet):
@@ -36,7 +36,7 @@ def parse_packet(packet):
 
     logger.info("version: %d, header length: %d, protocol: %d, source: %s, dest: %s",
                 ip.version, ip.length, ip.protocol, ip.source, ip.destination)
-    logger.info("packet length: %d", ip.packet_length)
+    logger.debug("packet length: %d", ip.packet_length)
 
 
 def parse_dump_file(dump):

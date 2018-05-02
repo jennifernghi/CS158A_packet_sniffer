@@ -10,6 +10,7 @@ name = "pypi"
 pcapy = "*"
 click = "*"
 bencoder = "*"
+coloredlogs = "*"
 
 
 [dev-packages]
