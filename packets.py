@@ -38,7 +38,7 @@ class EthernetPacket(Packet):
         return (high << 8 | low)
 
 
-class Ipv4Packet(Packet):
+class IPv4Packet(Packet):
     @classmethod
     def parse(cls, raw):
         header = struct.unpack("!BBHHHBBH4s4s", raw[:20])
@@ -59,4 +59,33 @@ class Ipv4Packet(Packet):
         if attributes["length"] > 20:
             attributes["options"] = raw[20:attributes["length"]]
 
-        return (cls(**attributes), raw[:attributes["length"]])
+        return (cls(**attributes), raw[attributes["length"]:])
+
+
+class TCPPacket(Packet):
+    @classmethod
+    def parse(cls, raw):
+        header = struct.unpack("!HHIIBBHHH", raw[:20])
+        source = header[0]
+        destination = header[1]
+        sequence = header[2]
+        ack = header[3]
+        offset = header[4] >> 4
+        ns = header[4] & 1
+        flags = header[5]
+        window_size = header[6]
+        checksum = header[7]
+        urgent = header[8]
+
+        return (cls(source=source, destination=destination, sequence=sequence,
+                    ack=ack, offset=offset, ns=ns, flags=flags,
+                    window_size=window_size, checksum=checksum, urgent=urgent),
+                raw[offset * 4:])
+
+
+class ICMPPacket(Packet):
+    @classmethod
+    def parse(cls, raw):
+        (type_, code, checksum, rest) = struct.unpack("!BBHI", raw[:8])
+        return (cls(type_=type_, code=code, checksum=checksum, rest=rest),
+                raw[8:])

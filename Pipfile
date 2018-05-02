@@ -15,6 +15,7 @@ coloredlogs = "*"
 
 [dev-packages]
 
+ipdb = "*"
 
 
 [requires]

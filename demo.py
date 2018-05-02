@@ -5,11 +5,36 @@ import pcapy
 import logging
 import bencoder
 import coloredlogs
-from packets import EthernetPacket, Ipv4Packet
+from packets import EthernetPacket, IPv4Packet, TCPPacket, ICMPPacket
 
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG")
+
+
+def parse_ip_packet(ip, packet):
+    logger.info("version: %d, header length: %d, protocol: %d, source: %s, dest: %s",
+                ip.version, ip.length, ip.protocol, ip.source, ip.destination)
+
+    if ip.protocol == 1:
+        # ICMP
+        (icmp, packet) = ICMPPacket.parse(packet)
+        logger.info("ICMP: type: %d code: %d checksum: %x",
+                    icmp.type_, icmp.code, icmp.checksum)
+        return
+    elif ip.protocol == 6:
+        # TCP
+        (tcp, packet) = TCPPacket.parse(packet)
+        logger.info("TCP: source port: %d destination: %d",
+                    tcp.source, tcp.destination)
+        if tcp.source == 80 or tcp.destination == 80:
+            logger.info("TCP body: %s", packet)
+        return
+    elif ip.protocol == 0x11:
+        # UDP
+        return
+    logger.warning("Unknown ip protocol: %s", hex(ip.protocol))
+    return
 
 
 def parse_packet(packet):
@@ -20,7 +45,9 @@ def parse_packet(packet):
         return
     elif ethernet.protocol == 0x0008:
         # IPv4
-        (ip, packet) = Ipv4Packet.parse(packet)
+        (ip, packet) = IPv4Packet.parse(packet)
+        parse_ip_packet(ip, packet)
+        return
     elif ethernet.protocol == 0xdd86:
         # IPv6
         return
@@ -30,13 +57,8 @@ def parse_packet(packet):
     elif ethernet.protocol == 0x0608:
         # ARP
         return
-    else:
-        logger.info(">>>>> %s", hex(ethernet.protocol))
-        return
-
-    logger.info("version: %d, header length: %d, protocol: %d, source: %s, dest: %s",
-                ip.version, ip.length, ip.protocol, ip.source, ip.destination)
-    logger.debug("packet length: %d", ip.packet_length)
+    logger.warning("Unknown ethernet protocol: %s", hex(ethernet.protocol))
+    return
 
 
 def parse_dump_file(dump):
