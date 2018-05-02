@@ -17,15 +17,33 @@ class Packet(object):
         for (k, w) in kwargs.items():
             setattr(self, k, w)
         self._attributes = kwargs
+        self.body = None
 
-        if "raw_body" in kwargs:
+        if "_raw_body" in kwargs:
             self.parse_body()
 
-    def __dict__(self):
-        return self._attributes
+    def to_dict(self):
+        attrs = dict((k, v) for (k, v) in self._attributes.items()
+                     if not k.startswith("_"))
+
+        if isinstance(self.body, bytes):
+            attrs["body"] = self.body
+        elif self.body:
+            attrs["body"] = self.body.to_dict()
+
+        return attrs
+
+    def __repr__(self):
+        return str(self.to_dict())
+
+    @property
+    def raw_body(self):
+        return getattr(self, "_raw_body", None)
 
 
 class EthernetPacket(Packet):
+    name = "ethernet"
+
     @staticmethod
     def _parse_mac(binary):
         return ":".join(["{:02x}"] * 6).format(*binary)
@@ -35,7 +53,7 @@ class EthernetPacket(Packet):
         header = struct.unpack("!6s6sH", raw[:14])
         packet = cls(destination=EthernetPacket._parse_mac(header[0]),
                      source=EthernetPacket._parse_mac(header[1]),
-                     protocol=socket.ntohs(header[2]), raw_body=raw[14:])
+                     protocol=socket.ntohs(header[2]), _raw_body=raw[14:])
         return packet
 
     def parse_body(self):
@@ -64,6 +82,8 @@ class EthernetPacket(Packet):
 
 
 class IPv4Packet(Packet):
+    name = "IPv4"
+
     @classmethod
     def parse(cls, raw):
         header = struct.unpack("!BBHHHBBH4s4s", raw[:20])
@@ -83,7 +103,7 @@ class IPv4Packet(Packet):
         attributes["destination"] = socket.inet_ntoa(header[9])
         if attributes["length"] > 20:
             attributes["options"] = raw[20:attributes["length"]]
-        attributes["raw_body"] = raw[attributes["length"]:]
+        attributes["_raw_body"] = raw[attributes["length"]:]
 
         packet = cls(**attributes)
 
@@ -111,6 +131,8 @@ class IPv4Packet(Packet):
 
 
 class TCPPacket(Packet):
+    name = "TCP"
+
     @classmethod
     def parse(cls, raw):
         header = struct.unpack("!HHIIBBHHH", raw[:20])
@@ -128,7 +150,7 @@ class TCPPacket(Packet):
         return cls(source=source, destination=destination, sequence=sequence,
                    ack=ack, offset=offset, ns=ns, flags=flags,
                    window_size=window_size, checksum=checksum, urgent=urgent,
-                   raw_body=raw[offset * 4:])
+                   _raw_body=raw[offset * 4:])
 
     def parse_body(self):
         if self.raw_body.startswith(b"HTTP/1.1"):
@@ -153,6 +175,14 @@ class HTTPRequestPacket(BaseHTTPRequestHandler):
         self.error_code = code
         self.error_message = message
 
+    def to_dict(self):
+        return dict(
+            command=self.command,
+            path=self.path,
+            request_version=self.request_version,
+            headers=dict(self.headers),
+        )
+
 
 class HTTPResponsePacket(HTTPResponse):
     def makefile(self, mode):
@@ -167,8 +197,18 @@ class HTTPResponsePacket(HTTPResponse):
         except http.client.IncompleteRead as e:
             self.body = e.partial
 
+    def to_dict(self):
+        return dict(
+            status=self.status,
+            reason=self.reason,
+            headers=dict(self.headers),
+            body=self.body,
+        )
+
 
 class ICMPPacket(Packet):
+    name = "ICMP"
+
     @classmethod
     def parse(cls, raw):
         (type_, code, checksum, rest) = struct.unpack("!BBHI", raw[:8])

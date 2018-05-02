@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import json
 import click
 import pcapy
 import asyncio
@@ -12,7 +13,7 @@ from websockets.exceptions import ConnectionClosed
 
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level="DEBUG")
+coloredlogs.install(level="WARNING")
 
 
 def parse_packet(packet):
@@ -42,7 +43,7 @@ class Sniffer(object):
     async def broadcast(self, packet):
         logger.info("broadcasting packet: %s", packet)
         for queue in self.queues:
-            await queue.put("test")
+            await queue.put(packet)
 
     def register(self):
         loop = asyncio.get_event_loop()
@@ -71,17 +72,30 @@ class DumpFileLoader(Sniffer):
         self.loop.stop()
 
 
+class BytesJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, bytes):
+            try:
+                return o.decode("utf-8")
+            except UnicodeDecodeError:
+                return list(map(int, o))
+        return super(BytesJSONEncoder, self).default(o)
+
+
 def start_websocket_server(sniffer):
     async def websocket_loop(websocket, path):
         queue = sniffer.register()
+        encoder = BytesJSONEncoder()
         while True:
             packet = await queue.get()
             logger.info("loop got packet: %s", packet)
             try:
-                await websocket.send(packet)
+                await websocket.send(encoder.encode(packet.to_dict()))
             except ConnectionClosed:
                 sniffer.deregister(queue)
                 logger.info("connection closed.")
+            except TypeError as e:
+                logger.exception("the packet is: %s", packet)
 
     logger.info("Starting WebSocket server at ws://127.0.0.1:5678")
     return websockets.serve(websocket_loop, '127.0.0.1', 5678)
