@@ -11,6 +11,7 @@ pcapy = "*"
 click = "*"
 bencoder = "*"
 coloredlogs = "*"
+websockets = "*"
 
 
 [dev-packages]
