@@ -31,6 +31,12 @@ class EthernetPacket(Packet):
                      protocol=socket.ntohs(header[2]))
         return (packet, raw[14:])
 
+    @property
+    def big_endian_protocol(self):
+        low = self.protocol >> 8
+        high = self.protocol & 0xFF
+        return (high << 8 | low)
+
 
 class Ipv4Packet(Packet):
     @classmethod

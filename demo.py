@@ -15,10 +15,24 @@ logger = logging.getLogger(__name__)
 def parse_packet(packet):
     (ethernet, packet) = EthernetPacket.parse(packet)
 
-    if ethernet.protocol != 8:
+    if ethernet.big_endian_protocol < 0x05DC:
+        # IEEE 802.3 packet
         return
-
-    (ip, packet) = Ipv4Packet.parse(packet)
+    elif ethernet.protocol == 0x0008:
+        # IPv4
+        (ip, packet) = Ipv4Packet.parse(packet)
+    elif ethernet.protocol == 0xdd86:
+        # IPv6
+        return
+    elif ethernet.protocol == 0xCC88:
+        # IEEE Std 802.1AB - Link Layer Discovery Protocol (LLDP)
+        return
+    elif ethernet.protocol == 0x0608:
+        # ARP
+        return
+    else:
+        logger.info(">>>>> %s", hex(ethernet.protocol))
+        return
 
     logger.info("version: %d, header length: %d, protocol: %d, source: %s, dest: %s",
                 ip.version, ip.length, ip.protocol, ip.source, ip.destination)
