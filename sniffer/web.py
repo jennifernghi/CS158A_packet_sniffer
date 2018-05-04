@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import json
 import logging
 from aiohttp import web
@@ -7,7 +8,11 @@ from aiohttp import web
 
 logger = logging.getLogger(__name__)
 routes = web.RouteTableDef()
-sniffer = None
+
+
+def get_static_location(name):
+    base = os.path.dirname(__file__)
+    return os.path.join(base, name)
 
 
 class BytesJSONEncoder(json.JSONEncoder):
@@ -20,8 +25,10 @@ class BytesJSONEncoder(json.JSONEncoder):
         return super(BytesJSONEncoder, self).default(o)
 
 
-@routes.get('/ws')
+@routes.get("/ws")
 async def websocket_handler(request):
+    sniffer = request.app["sniffer"]
+
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
@@ -40,15 +47,16 @@ async def websocket_handler(request):
             logger.exception("the packet is: %s", packet)
 
 
-@routes.get('/')
+@routes.get("/")
 async def handler(request):
-    return web.Response(text="ok")
+    fp = open(get_static_location("web/index.html"))
+    return web.Response(body=fp.read(), content_type="text/html")
 
 
-async def start_web_server(loop, _sniffer):
-    global sniffer
-    sniffer = _sniffer
+async def start_web_server(loop, sniffer):
     app = web.Application()
     app.add_routes(routes)
+    app.router.add_static("/", path=get_static_location("web"), name="static", show_index=True)
+    app["sniffer"] = sniffer
     await loop.create_server(app.make_handler(), "127.0.0.1", 8080)
     logger.info("Serving at http://127.0.0.1:8080")
