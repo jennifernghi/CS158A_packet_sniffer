@@ -4,8 +4,9 @@ import pcapy
 import asyncio
 import logging
 import bencoder
+from datetime import datetime
 
-from .packets import EthernetPacket
+from .packets import RawPacket
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,11 @@ class Sniffer(object):
         self.loop = loop
         self.dump = dump
         self.queues = []
+        self.count = 0
 
     def parse_packet(self, packet):
-        packet = EthernetPacket.parse(packet)
-        return packet
+        packet = RawPacket(packet)
+        return packet.evolve()
 
     async def sniff(self):
         reader = pcapy.open_live(self.device, 65536, 0, 0)
@@ -29,7 +31,11 @@ class Sniffer(object):
             (header, packet) = await self.loop.run_in_executor(None, reader.next)
             if self.dump:
                 self.dump.write(bencoder.encode(packet))
-            packet = self.parse_packet(packet)
+            (second, ms) = header.getts()
+            packet = self.parse_packet(packet).to_dict()
+            packet["id"] = self.count
+            packet["timestamp"] = datetime.fromtimestamp(second).strftime("%H:%M:%S") + "." + str(ms)
+            self.count += 1
             await self.broadcast(packet)
 
     async def broadcast(self, packet):

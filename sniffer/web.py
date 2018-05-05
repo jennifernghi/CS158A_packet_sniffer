@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import os
-import json
 import logging
 import asyncio
 from aiohttp import web
+
+from .utils import BytesJSONEncoder
 
 
 logger = logging.getLogger(__name__)
@@ -14,16 +15,6 @@ routes = web.RouteTableDef()
 def get_static_location(name):
     base = os.path.dirname(__file__)
     return os.path.join(base, name)
-
-
-class BytesJSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, bytes):
-            try:
-                return o.decode("utf-8")
-            except UnicodeDecodeError:
-                return list(map(int, o))
-        return super(BytesJSONEncoder, self).default(o)
 
 
 async def queue_buffer(queue):
@@ -45,6 +36,7 @@ async def queue_buffer(queue):
 
 @routes.get("/ws")
 async def websocket_handler(request):
+    logger.info("Received websocket connection")
     sniffer = request.app["sniffer"]
 
     ws = web.WebSocketResponse()
@@ -56,7 +48,7 @@ async def websocket_handler(request):
     async for packets in queue_buffer(queue):
         try:
             logger.info("sending out packets batch: %d", len(packets))
-            encoded = list(map(lambda x: x.to_dict(), packets))
+            encoded = list(packets)
             await ws.send_str(encoder.encode(encoded))
         except RuntimeError:
             sniffer.deregister(queue)

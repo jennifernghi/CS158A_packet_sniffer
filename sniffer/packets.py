@@ -12,120 +12,178 @@ from http.server import BaseHTTPRequestHandler
 logger = logging.getLogger(__name__)
 
 
-class Packet(object):
-    def __init__(self, **kwargs):
-        for (k, w) in kwargs.items():
-            setattr(self, k, w)
-        self._attributes = kwargs
-        self.body = None
+class Header(object):
+    def __init__(self, **attributes):
+        self._attributes = attributes
 
-        if "_raw_body" in kwargs:
-            self.parse_body()
-
-    def to_dict(self):
-        attrs = dict((k, v) for (k, v) in self._attributes.items()
-                     if not k.startswith("_"))
-
-        if isinstance(self.body, bytes):
-            attrs["body"] = self.body
-        elif self.body:
-            attrs["body"] = self.body.to_dict()
-
-        return attrs
+    def __getattr__(self, name):
+        if name in self._attributes:
+            return self._attributes[name]
+        raise AttributeError
 
     def __repr__(self):
-        return str(self.to_dict())
+        return repr(self._attributes)
+
+
+class Packet(object):
+    name = ""
+
+    def __init__(self, body, headers=None):
+        self.body = body
+        self.headers = []
+        self.raw = b""
+
+        if headers:
+            self.headers.extend(headers)
 
     @property
-    def raw_body(self):
-        return getattr(self, "_raw_body", None)
+    def header(self):
+        return self.headers[-1]
+
+    @property
+    def source(self):
+        return None
+
+    @property
+    def destination(self):
+        return None
+
+    @property
+    def info(self):
+        return None
+
+    def evolve(self):
+        result = self
+        while True:
+            new = result._evolve()
+            if not new:
+                break
+            result = new
+        return result
+
+    def _evolve(self):
+        return None
+
+    def to_dict(self):
+        return dict(
+            body=self.body,
+            name=self.name,
+            source=self.source,
+            info=self.info,
+            destination=self.destination,
+            headers=[header._attributes for header in self.headers],
+            raw=self.raw
+        )
+
+
+class RawPacket(Packet):
+    name = "Raw"
+
+    def __init__(self, raw):
+        super(RawPacket, self).__init__(raw)
+
+    def evolve(self):
+        result = super(RawPacket, self).evolve()
+        result.raw = self.body
+        return result
+
+    def _evolve(self):
+        return EthernetPacket.upgrade(self)
 
 
 class EthernetPacket(Packet):
-    name = "ethernet"
+    name = "Ethernet"
 
     @staticmethod
     def _parse_mac(binary):
-        return ":".join(["{:02x}"] * 6).format(*binary)
+        return "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}".format(*binary)
 
     @classmethod
-    def parse(cls, raw):
-        header = struct.unpack("!6s6sH", raw[:14])
-        packet = cls(destination=EthernetPacket._parse_mac(header[0]),
-                     source=EthernetPacket._parse_mac(header[1]),
-                     protocol=socket.ntohs(header[2]), _raw_body=raw[14:])
-        return packet
-
-    def parse_body(self):
-        if self.big_endian_protocol < 0x05DC:
-            # IEEE 802.3 packet
-            return
-        elif self.protocol == 0x0008:
-            # IPv4
-            self.body = IPv4Packet.parse(self.raw_body)
-            return
-        elif self.protocol == 0xdd86:
-            # IPv6
-            return
-        elif self.protocol == 0xCC88:
-            # IEEE Std 802.1AB - Link Layer Discovery Protocol (LLDP)
-            return
-        elif self.protocol == 0x0608:
-            # ARP
-            return
+    def upgrade(cls, packet):
+        parsed = struct.unpack("!6s6sH", packet.body[:14])
+        header = Header(
+            destination=EthernetPacket._parse_mac(parsed[0]),
+            source=EthernetPacket._parse_mac(parsed[1]),
+            protocol=socket.ntohs(parsed[2])
+        )
+        ethernet = cls(packet.body[14:], [header])
+        return ethernet
 
     @property
     def big_endian_protocol(self):
-        low = self.protocol >> 8
-        high = self.protocol & 0xFF
+        low = self.header.protocol >> 8
+        high = self.header.protocol & 0xFF
         return (high << 8 | low)
+
+    @property
+    def source(self):
+        return self.header.source
+
+    @property
+    def destination(self):
+        return self.header.destination
+
+    def _evolve(self):
+        if self.big_endian_protocol < 0x05DC:
+            # IEEE 802.3 packet
+            return
+        elif self.header.protocol == 0x0008:
+            # IPv4
+            return IPv4Packet.upgrade(self)
+        elif self.header.protocol == 0xdd86:
+            # IPv6
+            return
+        elif self.header.protocol == 0xCC88:
+            # IEEE Std 802.1AB - Link Layer Discovery Protocol (LLDP)
+            return
+        elif self.header.protocol == 0x0608:
+            # ARP
+            return
+        return None
 
 
 class IPv4Packet(Packet):
     name = "IPv4"
 
     @classmethod
-    def parse(cls, raw):
-        header = struct.unpack("!BBHHHBBH4s4s", raw[:20])
-        attributes = {}
-        attributes["version"] = header[0] >> 4
-        attributes["length"] = (header[0] & 0xF) * 4
-        attributes["dscp"] = header[1] >> 2
-        attributes["ecn"] = header[1] & 0x3
-        attributes["packet_length"] = header[2]
-        attributes["identification"] = header[3]
-        attributes["flags"] = header[4] >> 13
-        attributes["fragment_offset"] = header[4] & 0x1FFF
-        attributes["ttl"] = header[5]
-        attributes["protocol"] = header[6]
-        attributes["checksum"] = header[7]
-        attributes["source"] = socket.inet_ntoa(header[8])
-        attributes["destination"] = socket.inet_ntoa(header[9])
-        if attributes["length"] > 20:
-            attributes["options"] = raw[20:attributes["length"]]
-        attributes["_raw_body"] = raw[attributes["length"]:]
+    def upgrade(cls, packet):
+        raw = packet.body
+        parsed = struct.unpack("!BBHHHBBH4s4s", raw[:20])
+        header = Header(
+            version=parsed[0] >> 4,
+            length=(parsed[0] & 0xF) * 4,
+            dscp=parsed[1] >> 2,
+            ecn=parsed[1] & 0x3,
+            packet_length=parsed[2],
+            identification=parsed[3],
+            flags=parsed[4] >> 13,
+            fragment_offset=parsed[4] & 0x1FFF,
+            ttl=parsed[5],
+            protocol=parsed[6],
+            checksum=parsed[7],
+            source=socket.inet_ntoa(parsed[8]),
+            destination=socket.inet_ntoa(parsed[9])
+        )
+        if header.length > 20:
+            header._attributes["options"] = raw[20:header.length]
+        return cls(raw[header.length:], packet.headers + [header])
 
-        packet = cls(**attributes)
+    @property
+    def source(self):
+        return self.header.source
 
-        return packet
+    @property
+    def destination(self):
+        return self.header.destination
 
-    def parse_body(self):
-        if self.protocol == 1:
+    def _evolve(self):
+        if self.header.protocol == 1:
             # ICMP
-            self.body = ICMPPacket.parse(self.raw_body)
-            logger.info("ICMP: type: %d code: %d checksum: %x",
-                        self.body.type_, self.body.code, self.body.checksum)
-            return
-        elif self.protocol == 6:
+            return ICMPPacket.upgrade(self)
+        elif self.header.protocol == 6:
             # TCP
-            self.body = TCPPacket.parse(self.raw_body)
-            logger.info("TCP: source port: %d destination: %d",
-                        self.body.source, self.body.destination)
-            if self.body.source == 80 or self.body.destination == 80:
-                # logger.info("TCP body: %s", self.body.body)
-                pass
-            return
-        elif self.protocol == 0x11:
+            return TCPPacket.upgrade(self)
+        elif self.header.protocol == 0x11:
             # UDP
             return
 
@@ -134,37 +192,47 @@ class TCPPacket(Packet):
     name = "TCP"
 
     @classmethod
-    def parse(cls, raw):
-        header = struct.unpack("!HHIIBBHHH", raw[:20])
-        source = header[0]
-        destination = header[1]
-        sequence = header[2]
-        ack = header[3]
-        offset = header[4] >> 4
-        ns = header[4] & 1
-        flags = header[5]
-        window_size = header[6]
-        checksum = header[7]
-        urgent = header[8]
+    def upgrade(cls, packet):
+        raw = packet.body
+        parsed = struct.unpack("!HHIIBBHHH", raw[:20])
+        source = parsed[0]
+        destination = parsed[1]
+        sequence = parsed[2]
+        ack = parsed[3]
+        offset = parsed[4] >> 4
+        ns = parsed[4] & 1
+        flags = parsed[5]
+        window_size = parsed[6]
+        checksum = parsed[7]
+        urgent = parsed[8]
 
-        return cls(source=source, destination=destination, sequence=sequence,
-                   ack=ack, offset=offset, ns=ns, flags=flags,
-                   window_size=window_size, checksum=checksum, urgent=urgent,
-                   _raw_body=raw[offset * 4:])
+        header = Header(source=source, destination=destination,
+                        sequence=sequence, ack=ack, offset=offset, ns=ns,
+                        flags=flags, window_size=window_size,
+                        checksum=checksum, urgent=urgent)
 
-    def parse_body(self):
-        if self.raw_body.startswith(b"HTTP/1.1"):
-            self.body = HTTPResponsePacket(self.raw_body)
-        elif True in [self.raw_body.startswith(verb) for verb in HTTP_VERBS]:
-            self.body = HTTPRequestPacket(self.raw_body)
-        else:
-            self.body = self.raw_body
+        return cls(raw[offset * 4:], packet.headers + [header])
+
+    @property
+    def source(self):
+        return "{}:{}".format(self.headers[-2].source, self.header.source)
+
+    @property
+    def destination(self):
+        return "{}:{}".format(self.headers[-2].destination, self.header.destination)
+
+    def _evolve(self):
+        if self.body.startswith(b"HTTP/1.1"):
+            return HTTPResponsePacket.upgrade(self)
+        elif True in [self.body.startswith(verb) for verb in HTTP_VERBS]:
+            return HTTPRequestPacket.upgrade(self)
+        return None
 
 
 HTTP_VERBS = [b"GET", b"POST", b"PUT", b"HEAD", b"DELETE"]
 
 
-class HTTPRequestPacket(BaseHTTPRequestHandler):
+class HTTPRequest(BaseHTTPRequestHandler):
     def __init__(self, raw):
         self.rfile = BytesIO(raw)
         self.raw_requestline = self.rfile.readline()
@@ -175,21 +243,42 @@ class HTTPRequestPacket(BaseHTTPRequestHandler):
         self.error_code = code
         self.error_message = message
 
-    def to_dict(self):
-        return dict(
+    def parse(self):
+        return (Header(
             command=self.command,
             path=self.path,
             request_version=self.request_version,
             headers=dict(self.headers),
-        )
+        ), self.rfile.read())
 
 
-class HTTPResponsePacket(HTTPResponse):
+class HTTPRequestPacket(Packet):
+    name = "HTTP"
+
+    @classmethod
+    def upgrade(cls, packet):
+        (header, body) = HTTPRequest(packet.body).parse()
+        return cls(body, packet.headers + [header])
+
+    @property
+    def source(self):
+        return "{}:{}".format(self.headers[-3].source, self.headers[-2].source)
+
+    @property
+    def destination(self):
+        return "{}:{}".format(self.headers[-3].destination, self.headers[-2].destination)
+
+    @property
+    def info(self):
+        return "HTTP Request"
+
+
+class HTTPResponse(HTTPResponse):
     def makefile(self, mode):
         return None
 
     def __init__(self, raw):
-        super(HTTPResponsePacket, self).__init__(self)
+        super(HTTPResponse, self).__init__(self)
         self.fp = BytesIO(raw)
         self.begin()
         try:
@@ -197,19 +286,45 @@ class HTTPResponsePacket(HTTPResponse):
         except http.client.IncompleteRead as e:
             self.body = e.partial
 
-    def to_dict(self):
-        return dict(
+    def parse(self):
+        return (Header(
             status=self.status,
             reason=self.reason,
             headers=dict(self.headers),
-            body=self.body,
-        )
+        ), self.body)
+
+
+class HTTPResponsePacket(Packet):
+    name = "HTTP"
+
+    @classmethod
+    def upgrade(cls, packet):
+        (header, body) = HTTPResponse(packet.body).parse()
+        return cls(body, packet.headers + [header])
+
+    @property
+    def source(self):
+        return "{}:{}".format(self.headers[-3].source, self.headers[-2].source)
+
+    @property
+    def destination(self):
+        return "{}:{}".format(self.headers[-3].destination, self.headers[-2].destination)
+
+    @property
+    def info(self):
+        return "HTTP Response"
 
 
 class ICMPPacket(Packet):
     name = "ICMP"
 
     @classmethod
-    def parse(cls, raw):
-        (type_, code, checksum, rest) = struct.unpack("!BBHI", raw[:8])
-        return cls(type_=type_, code=code, checksum=checksum, rest=rest)
+    def upgrade(cls, packet):
+        (type_, code, checksum, rest) = struct.unpack("!BBHI", packet.body[:8])
+        attributes = {
+            "type": type_,
+            "code": code,
+            "checksum": checksum,
+        }
+        header = Header(**attributes)
+        return cls(rest, packet.headers + [header])
