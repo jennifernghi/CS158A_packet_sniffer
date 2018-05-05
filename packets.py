@@ -14,15 +14,19 @@ logger = logging.getLogger(__name__)
 
 class Packet(object):
     def __init__(self, **kwargs):
+        #print("in init")
+        #print(kwargs)
         for (k, w) in kwargs.items():
             setattr(self, k, w)
         self._attributes = kwargs
         self.body = None
 
         if "_raw_body" in kwargs:
+            #print("have _raw_body")
             self.parse_body()
 
     def to_dict(self):
+        #print("in to_dict")
         attrs = dict((k, v) for (k, v) in self._attributes.items()
                      if not k.startswith("_"))
 
@@ -34,6 +38,7 @@ class Packet(object):
         return attrs
 
     def __repr__(self):
+        #print("in __repr__")
         return str(self.to_dict())
 
     @property
@@ -46,10 +51,12 @@ class EthernetPacket(Packet):
 
     @staticmethod
     def _parse_mac(binary):
+        #print("in EthernetPacket _parse_mac")
         return ":".join(["{:02x}"] * 6).format(*binary)
 
     @classmethod
     def parse(cls, raw):
+        #print("in EthernetPacket parse")
         header = struct.unpack("!6s6sH", raw[:14])
         packet = cls(destination=EthernetPacket._parse_mac(header[0]),
                      source=EthernetPacket._parse_mac(header[1]),
@@ -57,6 +64,7 @@ class EthernetPacket(Packet):
         return packet
 
     def parse_body(self):
+        #print("in EthernetPacket parse_body")
         if self.big_endian_protocol < 0x05DC:
             # IEEE 802.3 packet
             return
@@ -86,6 +94,7 @@ class IPv4Packet(Packet):
 
     @classmethod
     def parse(cls, raw):
+        #print("in IPv4Packet parse")
         header = struct.unpack("!BBHHHBBH4s4s", raw[:20])
         attributes = {}
         attributes["version"] = header[0] >> 4
@@ -110,14 +119,17 @@ class IPv4Packet(Packet):
         return packet
 
     def parse_body(self):
+        #print("in IPv4Packet parse_body")
         if self.protocol == 1:
             # ICMP
+            #print("in IPv4Packet ICMP")
             self.body = ICMPPacket.parse(self.raw_body)
             logger.info("ICMP: type: %d code: %d checksum: %x",
                         self.body.type_, self.body.code, self.body.checksum)
             return
         elif self.protocol == 6:
             # TCP
+            #print("in IPv4Packet TCP")
             self.body = TCPPacket.parse(self.raw_body)
             logger.info("TCP: source port: %d destination: %d",
                         self.body.source, self.body.destination)
@@ -126,8 +138,13 @@ class IPv4Packet(Packet):
                 pass
             return
         elif self.protocol == 0x11:
+            #print("in IPv4Packet UDP")
+            #logger.info("UDP: source port: %d destination port: %d length: %d checksum : %d",
+             #           self.body.UDP_source, self.body.UDP_destination, self.body.UDP_length, self.body.UDP_checksum)
             # UDP
+            self.body = UDPPacket.parse(self.raw_body)
             return
+
 
 
 class TCPPacket(Packet):
@@ -135,6 +152,7 @@ class TCPPacket(Packet):
 
     @classmethod
     def parse(cls, raw):
+        #print("in TCPPacket parse")
         header = struct.unpack("!HHIIBBHHH", raw[:20])
         source = header[0]
         destination = header[1]
@@ -153,6 +171,7 @@ class TCPPacket(Packet):
                    _raw_body=raw[offset * 4:])
 
     def parse_body(self):
+        #print("in TCPPacket parse_body")
         if self.raw_body.startswith(b"HTTP/1.1"):
             self.body = HTTPResponsePacket(self.raw_body)
         elif True in [self.raw_body.startswith(verb) for verb in HTTP_VERBS]:
@@ -211,5 +230,19 @@ class ICMPPacket(Packet):
 
     @classmethod
     def parse(cls, raw):
+        #print("in ICMPPacket parse")
         (type_, code, checksum, rest) = struct.unpack("!BBHI", raw[:8])
         return cls(type_=type_, code=code, checksum=checksum, rest=rest)
+
+
+class UDPPacket(Packet):
+    name = "UDP"
+
+    @classmethod
+    def parse(cls, raw):
+        #print("in UDPPacket parse")
+        source, destination, length, checksum = struct.unpack("!HHHH", raw[:8])
+        data = raw[8:]
+
+        return cls(source=source, destination=destination, length=length, checksum=checksum, data=data)
+

@@ -14,6 +14,7 @@ from websockets.exceptions import ConnectionClosed
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="WARNING")
+coloredlogs.install(level="INFO")
 
 
 def parse_packet(packet):
@@ -29,6 +30,7 @@ class Sniffer(object):
         self.queues = []
 
     async def sniff(self):
+
         reader = pcapy.open_live(self.device, 65536, 0, 0)
         logger.info("Sniffing on %s", self.device)
 
@@ -36,6 +38,7 @@ class Sniffer(object):
             (header, packet) = await self.loop.run_in_executor(None, reader.next)
             if self.dump:
                 self.dump.write(bencoder.encode(packet))
+
             packet = parse_packet(packet)
             logger.info("caught: %s", packet)
             await self.broadcast(packet)
@@ -84,6 +87,7 @@ class BytesJSONEncoder(json.JSONEncoder):
 
 def start_websocket_server(sniffer):
     async def websocket_loop(websocket, path):
+
         queue = sniffer.register()
         encoder = BytesJSONEncoder()
         while True:
