@@ -5,6 +5,7 @@ import asyncio
 import logging
 import bencoder
 from datetime import datetime
+from itertools import islice
 
 from .packets import RawPacket
 
@@ -19,9 +20,13 @@ class Sniffer(object):
         self.queues = []
         self.count = 0
 
-    def parse_packet(self, packet):
+    def parse_packet(self, packet, second, ms):
         packet = RawPacket(packet)
-        return packet.evolve()
+        packet = packet.evolve().to_dict()
+        packet["id"] = self.count
+        self.count += 1
+        packet["timestamp"] = datetime.fromtimestamp(second).strftime("%H:%M:%S") + "." + str(ms)
+        return packet
 
     async def sniff(self):
         reader = pcapy.open_live(self.device, 65536, 0, 0)
@@ -29,13 +34,13 @@ class Sniffer(object):
 
         while True:
             (header, packet) = await self.loop.run_in_executor(None, reader.next)
+            (second, ms) = header.getts()
             if self.dump:
                 self.dump.write(bencoder.encode(packet))
-            (second, ms) = header.getts()
-            packet = self.parse_packet(packet).to_dict()
-            packet["id"] = self.count
-            packet["timestamp"] = datetime.fromtimestamp(second).strftime("%H:%M:%S") + "." + str(ms)
-            self.count += 1
+                self.dump.write(bencoder.encode(second))
+                self.dump.write(bencoder.encode(ms))
+
+            packet = self.parse_packet(packet, second, ms)
             await self.broadcast(packet)
 
     async def broadcast(self, packet):
@@ -55,16 +60,29 @@ class Sniffer(object):
         logger.debug("queue deregistered.")
 
 
+def window(iterable, size=2):
+    shiftedStarts = [islice(iterable, s, None, size) for s in range(size)]
+    return zip(*shiftedStarts)
+
+
 class DumpFileLoader(Sniffer):
     def __init__(self, fp, loop):
         super(DumpFileLoader, self).__init__('en0', loop)
         self.fp = fp
+        self.connections = asyncio.Queue()
 
     async def sniff(self):
         content = b"l" + self.fp.read() + b"e"
         packets = bencoder.decode(content)
-        for packet in packets:
-            packet = self.parse_packet(packet)
-            await self.broadcast(packet)
 
-        self.loop.stop()
+        while True:
+            queue = await self.connections.get()
+            self.count = 0
+            for (packet, second, ms) in window(packets, 3):
+                packet = self.parse_packet(packet, second, ms)
+                await queue.put(packet)
+
+    def register(self):
+        queue = super(DumpFileLoader, self).register()
+        self.connections.put_nowait(queue)
+        return queue
