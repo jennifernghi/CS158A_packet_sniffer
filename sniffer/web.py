@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import asyncio
 from aiohttp import web
 
 
@@ -25,6 +26,23 @@ class BytesJSONEncoder(json.JSONEncoder):
         return super(BytesJSONEncoder, self).default(o)
 
 
+async def queue_buffer(queue):
+    buff = []
+    while True:
+        try:
+            packet = await asyncio.wait_for(queue.get(), 1)
+        except asyncio.TimeoutError:
+            if buff:
+                yield buff
+                buff = []
+        else:
+            buff.append(packet)
+
+            if len(buff) >= 100:
+                yield buff
+                buff = []
+
+
 @routes.get("/ws")
 async def websocket_handler(request):
     sniffer = request.app["sniffer"]
@@ -35,16 +53,16 @@ async def websocket_handler(request):
     queue = sniffer.register()
     encoder = BytesJSONEncoder()
 
-    while True:
-        packet = await queue.get()
-        logger.info("loop got packet: %s", packet)
+    async for packets in queue_buffer(queue):
         try:
-            await ws.send_str(encoder.encode(packet.to_dict()))
+            logger.info("sending out packets batch: %d", len(packets))
+            encoded = list(map(lambda x: x.to_dict(), packets))
+            await ws.send_str(encoder.encode(encoded))
         except RuntimeError:
             sniffer.deregister(queue)
             logger.info("connection closed.")
         except TypeError:
-            logger.exception("the packet is: %s", packet)
+            logger.exception("the packet is: %s", packets)
 
 
 @routes.get("/")
