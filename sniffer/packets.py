@@ -195,7 +195,7 @@ class IPv4Packet(Packet):
             return TCPPacket.upgrade(self)
         elif self.header.protocol == 0x11:
             # UDP
-            return
+            return UDPPacket.upgrade(self)
 
 
 class TCPPacket(Packet):
@@ -348,3 +348,28 @@ class ICMPPacket(Packet):
         }
         header = Header(**attributes)
         return cls(rest, packet.headers + [header])
+
+
+class UDPPacket(Packet):
+    name = "UDP"
+
+    @classmethod
+    def upgrade(cls, packet):
+
+        (source, destination, length, checksum) = struct.unpack("!HHHH", packet.body[:8])
+        data = packet.body[8:]
+
+        header = Header(
+            source=source,
+            destination=destination,
+            length=length,
+            checksum=checksum
+        )
+        header.set_summary(
+            "TCP protocol, Src: {}, Dst: {}, Length: {}, checksum{}".format(header.source,
+                                                                            header.destination,
+                                                                            header.length,
+                                                                            header.checksum)
+        )
+
+        return cls(data, packet.headers + [header])
