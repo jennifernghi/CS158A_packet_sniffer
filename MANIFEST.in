@@ -1,3 +1,5 @@
 include sniffer/web/index.html
 include sniffer/web/style.css
 include sniffer/web/dist/app.js
+include sniffer/web/vendor/jq.wasm.min.js
+include sniffer/web/vendor/jq.wasm.wasm
