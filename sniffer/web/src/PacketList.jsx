@@ -19,7 +19,13 @@ export default class PacketList extends React.Component {
 
   static filterPacketWithQuery(packets, query) {
     try {
-      const result = window.jq(packets, `[.[] | ${query} | not | not]`);
+      const result = window.jq(packets.map((p) => {
+        const packet = p;
+        if (packet.headers !== undefined) {
+          [packet.header] = packet.headers.slice(-1);
+        }
+        return packet;
+      }), `[.[] | ${query} | not | not]`);
 
       if (result) {
         return result;
@@ -121,7 +127,7 @@ export default class PacketList extends React.Component {
               <th width="10%">Type</th>
               <th width="15%">Source</th>
               <th width="15%">Destination</th>
-              <th>Info</th>
+              <th width="42%">Info</th>
             </tr>
           </thead>
           <tbody>

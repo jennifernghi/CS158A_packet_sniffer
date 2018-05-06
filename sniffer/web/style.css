@@ -8,6 +8,10 @@ pre {
   font-family: 'Fira Mono', monospace;
 }
 
+body {
+  overflow-x: hidden;
+}
+
 .filter-bar {
   height: 50px;
   width: 100%;
