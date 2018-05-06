@@ -24,6 +24,9 @@ class Header(object):
     def __repr__(self):
         return repr(self._attributes)
 
+    def set_summary(self, summary):
+        self._attributes["_summary"] = summary
+
 
 class Packet(object):
     name = ""
@@ -106,8 +109,10 @@ class EthernetPacket(Packet):
             source=EthernetPacket._parse_mac(parsed[1]),
             protocol=socket.ntohs(parsed[2])
         )
-        ethernet = cls(packet.body[14:], [header])
-        return ethernet
+        header.set_summary(
+            "Ethernet II, Src: {}, Dst: {}".format(header.source, header.destination)
+        )
+        return cls(packet.body[14:], [header])
 
     @property
     def big_endian_protocol(self):
@@ -166,6 +171,11 @@ class IPv4Packet(Packet):
         )
         if header.length > 20:
             header._attributes["options"] = raw[20:header.length]
+        header.set_summary(
+            "Internet Protocol Version 4, Src: {}, Dst: {}".format(
+                header.source, header.destination
+            )
+        )
         return cls(raw[header.length:], packet.headers + [header])
 
     @property
@@ -210,6 +220,12 @@ class TCPPacket(Packet):
                         sequence=sequence, ack=ack, offset=offset, ns=ns,
                         flags=flags, window_size=window_size,
                         checksum=checksum, urgent=urgent)
+
+        header.set_summary(
+            "Transmission Control Protocol, Src Port: {}, Dst Port: {}, Seq: {}, Ack: {}, Len: {}".format(
+                header.source, header.destination, header.sequence, header.ack, header.offset * 4
+            )
+        )
 
         return cls(raw[offset * 4:], packet.headers + [header])
 
@@ -258,6 +274,9 @@ class HTTPRequestPacket(Packet):
     @classmethod
     def upgrade(cls, packet):
         (header, body) = HTTPRequest(packet.body).parse()
+        header.set_summary(
+            "Hypertext Transfer Protocol Request: {} {}".format(header.command, header.path)
+        )
         return cls(body, packet.headers + [header])
 
     @property
@@ -300,6 +319,7 @@ class HTTPResponsePacket(Packet):
     @classmethod
     def upgrade(cls, packet):
         (header, body) = HTTPResponse(packet.body).parse()
+        header.set_summary("Hypertext Transfer Protocol Response")
         return cls(body, packet.headers + [header])
 
     @property

@@ -106,3 +106,18 @@ pre {
   width: 100%;
 }
 
+.packet-header-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.packet-header-summary {
+  background-color: #EEE;
+  height: 36px;
+  line-height: 36px;
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

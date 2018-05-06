@@ -16,7 +16,6 @@ export default class PacketList extends React.Component {
 
   handleData(data) {
     let packets = JSON.parse(data);
-    console.log(packets);
     this.setState({
       packets: [...this.state.packets, ...packets]
     });

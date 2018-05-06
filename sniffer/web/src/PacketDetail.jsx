@@ -1,6 +1,8 @@
 
 import React from 'react';
 
+import PacketHeader from './PacketHeader.jsx';
+
 export default class PacketDetail extends React.Component {
   renderPacketRaw() {
     const raw = this.props.packet.raw;
@@ -19,10 +21,17 @@ export default class PacketDetail extends React.Component {
     return (<pre>{result.join("\n")}</pre>);
   }
 
+  renderHeader() {
+    return (<ul className="packet-header-list">
+      {this.props.packet.headers.map((header, index) => (<PacketHeader header={header} key={index} />))}
+    </ul>);
+  }
+
   render() {
     return (<div className="packet-detail">
       <div className="packet-attributes">
         <h2>Packet Headers</h2>
+        {this.renderHeader()}
       </div>
       <div className="packet-raw">
         <h2>Raw Packets</h2>
