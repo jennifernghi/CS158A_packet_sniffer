@@ -366,10 +366,19 @@ class UDPPacket(Packet):
             checksum=checksum
         )
         header.set_summary(
-            "TCP protocol, Src: {}, Dst: {}, Length: {}, checksum{}".format(header.source,
-                                                                            header.destination,
-                                                                            header.length,
-                                                                            header.checksum)
+            "UDP protocol, Src: {}, Dst: {}, \n \t Length: {}, checksum: {}".format(header.source,
+                                                                                    header.destination,
+                                                                                    header.length,
+                                                                                    header.checksum)
         )
 
         return cls(data, packet.headers + [header])
+
+    @property
+    def source(self):
+        return "{}:{}".format(self.headers[-2].source, self.header.source)
+
+    @property
+    def destination(self):
+        return "{}:{}".format(self.headers[-2].destination, self.header.destination)
+
