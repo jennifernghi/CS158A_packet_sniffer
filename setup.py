@@ -12,7 +12,6 @@ class BuildPyCommand(build_py):
 
     def run(self):
         self.execute(BuildPyCommand.build_frontend, (), msg="Building Frontend...")
-        print("ayyyyyyyyyyyyyyyyyyyyyyyy")
         super(BuildPyCommand, self).run()
 
 
