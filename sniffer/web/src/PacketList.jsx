@@ -8,16 +8,26 @@ import PacketDetail from './PacketDetail';
 export default class PacketList extends React.Component {
   static getDerivedStateFromProps(nextProps, prevState) {
     if (!nextProps.query) return {};
+    const flags = PacketList.filterPacketWithQuery(prevState.packets, nextProps.query);
 
+    if (flags.length !== 0) {
+      return { flags };
+    }
+
+    return {};
+  }
+
+  static filterPacketWithQuery(packets, query) {
     try {
-      const result = window.jq(prevState.packets, `[.[] | ${nextProps.query} | not | not]`);
+      const result = window.jq(packets, `[.[] | ${query} | not | not]`);
+
       if (result) {
-        return { filter: result };
+        return result;
       }
-      return {};
+      return [];
     } catch (error) {
       console.error(error);
-      return {};
+      return [];
     }
   }
 
@@ -25,8 +35,9 @@ export default class PacketList extends React.Component {
     super(props);
     this.state = {
       packets: [],
+      raws: [],
       selected: null,
-      filter: [],
+      flags: [],
     };
 
     this.handleClick = this.handleClick.bind(this);
@@ -35,9 +46,24 @@ export default class PacketList extends React.Component {
 
   handleData(data) {
     const packets = JSON.parse(data);
-    this.setState({
-      packets: [...this.state.packets, ...packets],
+    const raws = packets.map(({ raw }) => raw);
+    const strippedPacket = packets.map((packet) => {
+      const result = packet;
+      delete result.raw;
+      return result;
     });
+
+    const nextState = {
+      raws: this.state.raws.concat(raws),
+      packets: this.state.packets.concat(strippedPacket),
+    };
+
+    if (this.props.query) {
+      const flags = PacketList.filterPacketWithQuery(strippedPacket, this.props.query);
+      nextState.flags = this.state.flags.concat(flags);
+    }
+
+    this.setState(nextState);
   }
 
   handleClick(key) {
@@ -49,8 +75,8 @@ export default class PacketList extends React.Component {
   renderPacketList() {
     let packets;
 
-    if (this.state.filter.length === this.state.packets.length) {
-      packets = this.state.packets.filter((_, index) => this.state.filter[index]);
+    if (this.state.flags.length === this.state.packets.length) {
+      packets = this.state.packets.filter((_, index) => this.state.flags[index]);
     } else {
       ({ packets } = this.state);
     }
@@ -73,7 +99,8 @@ export default class PacketList extends React.Component {
 
   renderPacketDetail() {
     if (this.state.selected) {
-      return (<PacketDetail packet={this.state.packets[this.state.selected]} />);
+      const index = this.state.selected - this.state.packets[0].id;
+      return (<PacketDetail packet={this.state.packets[index]} raw={this.state.raws[index]} />);
     }
     return null;
   }

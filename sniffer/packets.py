@@ -289,7 +289,7 @@ class HTTPRequestPacket(Packet):
 
     @property
     def info(self):
-        return "HTTP Request"
+        return "Request {} {}".format(self.header.command, self.header.path)
 
 
 class HTTPResponse(HTTPResponse):
@@ -332,7 +332,7 @@ class HTTPResponsePacket(Packet):
 
     @property
     def info(self):
-        return "HTTP Response"
+        return "Response: {} {}  ({})".format(self.header.status, self.header.reason, self.header.headers.get("Content-Type", ""))
 
 
 class ICMPPacket(Packet):
