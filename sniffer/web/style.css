@@ -40,6 +40,9 @@ pre {
   height: 40px;
   line-height: 40px;
   color: #333;
+}
+
+.packet-list tbody tr {
   user-select: none;
   cursor: pointer;
 }

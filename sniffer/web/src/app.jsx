@@ -1,13 +1,31 @@
 import ReactDOM from 'react-dom';
 import React from 'react';
 
-import FilterBar from './FilterBar.jsx';
-import PacketList from './PacketList.jsx';
+import FilterBar from './FilterBar';
+import PacketList from './PacketList';
 
-ReactDOM.render(
-  (<div>
-    <FilterBar />
-    <PacketList />
-  </div>),
-  document.getElementById('root')
-);
+
+class Application extends React.Component {
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      keyword: '',
+      jq: false,
+    };
+
+    window.jq.onInitialized.addListener(() => this.setState({ jq: true }));
+  }
+
+  render() {
+    return (
+      <div>
+        <FilterBar onKeywordChange={keyword => this.setState({ keyword })} loaded={this.state.jq} />
+        <PacketList query={this.state.keyword} />
+      </div>
+    );
+  }
+}
+
+
+ReactDOM.render(<Application />, document.getElementById('root'));

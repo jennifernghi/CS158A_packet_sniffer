@@ -63,6 +63,12 @@ async def handler(request):
     return web.Response(body=fp.read(), content_type="text/html")
 
 
+@routes.get("/jq.wasm.wasm")
+async def jqwasm(request):
+    fp = open(get_static_location("web/vendor/jq.wasm.wasm"), "rb")
+    return web.Response(body=fp.read(), content_type="application/wasm")
+
+
 async def start_web_server(loop, sniffer):
     app = web.Application()
     app.add_routes(routes)
