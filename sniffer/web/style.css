@@ -1,17 +1,29 @@
-html, body {
+html, body, input {
   padding: 0;
   margin: 0;
   font-family: 'Fira Sans', sans-serif;
 }
 
+pre {
+  font-family: 'Fira Mono', monospace;
+}
+
 .filter-bar {
   height: 50px;
   width: 100%;
-  background-color: #DDD;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
+}
+
+.filter-bar input {
+  height: 50px;
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  padding: 0 20px;
 }
 
 .packet-list-panel {
@@ -28,8 +40,12 @@ html, body {
   height: 40px;
   line-height: 40px;
   color: #333;
-  padding:0 20px;
-  border-bottom: 1px solid #DEDEDE;
+  user-select: none;
+  cursor: pointer;
+}
+
+.packet-list tr.selected {
+  background-color: #EEE;
 }
 
 .packet-list thead th {
@@ -38,6 +54,10 @@ html, body {
   top: 50px;
   text-align: left;
   background-color: white;
+  border-top: 2px solid #000;
+  border-bottom: 2px solid #000;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .packet-list th, .packet-list td {
@@ -45,4 +65,44 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border-bottom:  1px solid #999;
 }
+
+.packet-detail {
+  position: fixed;
+  top: 50%;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: white;
+  font-size: 0;
+  border-top: 2px solid #000;
+}
+
+.packet-detail > div {
+  font-size: 14px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  padding: 0 20px;
+  box-sizing: border-box;
+  width: 50%;
+}
+
+.packet-detail .packet-raw {
+  left: 50%;
+}
+
+.packet-detail .packet-attributes {
+  left: 0%;
+}
+
+.packet-raw pre {
+  overflow-x: scroll;
+  position: absolute;
+  top: 50px;
+  bottom: 10px;
+  width: 100%;
+}
+

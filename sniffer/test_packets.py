@@ -15,12 +15,12 @@ class TestRawPacket(unittest.TestCase):
         self.assertEqual(len(result.headers), 3)
 
     def test_evolve_http_request(self):
-        raw = b'\x88\xd7\xf6\xaf\xdd(<\x15\xc2\xde\xdb\xf2\x08\x00E\x00\x01\xae\x00\x00@\x00@\x06VN\xc0\xa8\x01H@\x1e\xe0\xed\xfd!\x00P\xc0\xcfU\x8f\x0c\xe6\xd3\xd2P\x18 \x00\xa5v\x00\x00POST /protocol_1.2 HTTP/1.1\r\nAccept-Encoding: gzip\r\nConnection: keep-alive\r\nHost: post2.audioscrobbler.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 139\r\nKeep-Alive: 300\r\nUser-Agent: Spotify/107700338 OSX/0 (MacBookPro11,3)\r\n\r\ns=ef76f8c01dce541fd329208a43f30583&a[0]=fox+capture+plan&t[0]=Supersonic&i[0]=1525241684&o[0]=P&r[0]=&l[0]=209&b[0]=Butterfly&n[0]=11&m[0]='
+        raw = b"\x88\xd7\xf6\xaf\xdd(<\x15\xc2\xde\xdb\xf2\x08\x00E\x00\x02\xd9\x00\x00@\x00@\x06\xf9\xc0\xc0\xa8\x01H\xd1W\xab\x16\xdcA\x00P\x7fz\xf2\x9d'\xbe_\xdb\x80\x18\x10\x00f\x91\x00\x00\x01\x01\x08\n^\xbbWc\x02\xcf@2GET /PopCalendar2008/CSS/ADXPublic_Images/left1.gif HTTP/1.1\r\nHost: events.sjsu.edu\r\nConnection: keep-alive\r\nUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36\r\nAccept: image/webp,image/apng,image/*,*/*;q=0.8\r\nDNT: 1\r\nReferer: http://events.sjsu.edu/EventList.aspx?view=EventDetails&eventidn=24663&information_id=41002&type=&syndicate=syndicate\r\nAccept-Encoding: gzip, deflate\r\nAccept-Language: en-US,en;q=0.9,zh;q=0.8,zh-CN;q=0.7,zh-TW;q=0.6\r\nCookie: __utma=69758162.1396097625.1508958142.1508999758.1510159301.2; _ga=GA1.2.1396097625.1508958142; ASP.NET_SessionId=gq1lge55aiatjdipvox5vlqe\r\n\r\n"
         packet = RawPacket(raw)
         result = packet.evolve()
 
         self.assertIsInstance(result, HTTPRequestPacket)
-        print(result.source)
+        print(result.raw)
         print(result.destination)
 
     def test_evolve_http_response(self):

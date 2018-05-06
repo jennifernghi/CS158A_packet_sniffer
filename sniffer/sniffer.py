@@ -76,7 +76,10 @@ class DumpFileLoader(Sniffer):
         packets = bencoder.decode(content)
 
         while True:
-            queue = await self.connections.get()
+            try:
+                queue = await self.connections.get()
+            except RuntimeError:
+                break
             self.count = 0
             for (packet, second, ms) in window(packets, 3):
                 packet = self.parse_packet(packet, second, ms)

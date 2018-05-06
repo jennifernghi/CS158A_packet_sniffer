@@ -31,7 +31,7 @@ class Packet(object):
     def __init__(self, body, headers=None):
         self.body = body
         self.headers = []
-        self.raw = b""
+        self.raw = []
 
         if headers:
             self.headers.extend(headers)
@@ -84,7 +84,7 @@ class RawPacket(Packet):
 
     def evolve(self):
         result = super(RawPacket, self).evolve()
-        result.raw = self.body
+        result.raw = list(map(int, self.body))
         return result
 
     def _evolve(self):

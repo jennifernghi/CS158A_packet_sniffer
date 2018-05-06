@@ -3,6 +3,8 @@ import React from 'react';
 
 export default class FilterBar extends React.Component {
   render() {
-    return (<div className="filter-bar" />);
+    return (<div className="filter-bar">
+      <input type="text" placeholder="Type your filter here..." />
+    </div>);
   }
 }
