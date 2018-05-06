@@ -9,6 +9,8 @@
     "react-websocket": "^2.0.0"
   },
   "devDependencies": {
+    "eslint": "^4.9.0",
+    "babel-core": "^6.26.3",
     "babel-cli": "^6.26.0",
     "babel-loader": "^7.1.4",
     "babel-preset-env": "^1.6.1",
@@ -22,6 +24,7 @@
     "webpack-cli": "^2.1.2"
   },
   "scripts": {
-    "build": "webpack --mode development --config webpack.config.js"
+    "build": "webpack --mode development --config webpack.config.js",
+    "release": "webpack --mode production --config webpack.config.js"
   }
 }
