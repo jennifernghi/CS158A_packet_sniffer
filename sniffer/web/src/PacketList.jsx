@@ -89,7 +89,7 @@ export default class PacketList extends React.Component {
       >
         <td>{packet.id}</td>
         <td>{packet.timestamp}</td>
-        <td>{packet.name}</td>
+        <td>{packet.type}</td>
         <td>{packet.source}</td>
         <td>{packet.destination}</td>
         <td>{packet.info}</td>
