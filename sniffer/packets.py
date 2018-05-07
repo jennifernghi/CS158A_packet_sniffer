@@ -423,6 +423,7 @@ class UDPPacket(Packet):
             "User Datagram Protocol, Src: {}, Dst: {}, Length: {}, checksum: {}".format(
                 header.source, header.destination, header.length, header.checksum
             )
+        )
 
         return cls(data, packet.headers + [header])
 
