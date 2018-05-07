@@ -414,9 +414,17 @@ class ARPPacket(Packet):
             protocol_address_length=protocol_address_length,
             op_code=op_code,
             sender_hardware_address=sender_hardware_address,
-            sender_protocol_address=sender_protocol_address,
+            source=sender_protocol_address,
             target_hardware_address=target_hardware_address,
-            target_protocol_address=target_protocol_address
+            destination=target_protocol_address
         )
 
         return cls(data, packet.headers + [header])
+
+    @property
+    def source(self):
+        return self.header.source
+
+    @property
+    def destination(self):
+        return self.header.destination
