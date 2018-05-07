@@ -4,6 +4,7 @@ import http
 import socket
 import struct
 import logging
+import binascii
 from io import BytesIO
 from http.client import HTTPResponse
 from http.server import BaseHTTPRequestHandler
@@ -143,7 +144,7 @@ class EthernetPacket(Packet):
             return
         elif self.header.protocol == 0x0608:
             # ARP
-            return
+            return ARPPacket.upgrade(self)
         return None
 
 
@@ -382,3 +383,40 @@ class UDPPacket(Packet):
     def destination(self):
         return "{}:{}".format(self.headers[-2].destination, self.header.destination)
 
+
+class ARPPacket(Packet):
+    name = "ARP"
+
+    @classmethod
+    def upgrade(cls, packet):
+        (hardware_type, protocol_type,
+         hardware_address_length, protocol_address_length,
+         op_code,
+         sender_hardware_address, sender_protocol_address,
+         target_hardware_address, target_protocol_address) = struct.unpack("2s2s1s1s2s6s4s6s4s", packet.body[:28])
+        data = packet.body[28:]
+
+        hardware_type = binascii.hexlify(hardware_type),
+        protocol_type = binascii.hexlify(protocol_type),
+        hardware_address_length = binascii.hexlify(hardware_address_length),
+        protocol_address_length = binascii.hexlify(protocol_address_length),
+        op_code = binascii.hexlify(op_code),  # 2 byte
+        sender_hardware_address = ':'.join(binascii.hexlify(sender_hardware_address)
+                                           .decode('ascii')[i:i + 2] for i in range(0, 12, 2))
+        sender_protocol_address = socket.inet_ntoa(sender_protocol_address),
+        target_hardware_address = ':'.join(binascii.hexlify(target_hardware_address)
+                                           .decode('ascii')[i:i + 2] for i in range(0, 12, 2)),
+        target_protocol_address = socket.inet_ntoa(target_protocol_address)
+        header = Header(
+            hardware_type=hardware_type,
+            protocol_type=protocol_type,
+            hardware_address_length=hardware_address_length,
+            protocol_address_length=protocol_address_length,
+            op_code=op_code,
+            sender_hardware_address=sender_hardware_address,
+            sender_protocol_address=sender_protocol_address,
+            target_hardware_address=target_hardware_address,
+            target_protocol_address=target_protocol_address
+        )
+
+        return cls(data, packet.headers + [header])
