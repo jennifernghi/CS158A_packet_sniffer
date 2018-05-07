@@ -4,13 +4,17 @@ import http
 import socket
 import struct
 import logging
-import binascii
 from io import BytesIO
+from binascii import hexlify
 from http.client import HTTPResponse
 from http.server import BaseHTTPRequestHandler
 
 
 logger = logging.getLogger(__name__)
+
+
+def format_mac_address(binary):
+    return "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}".format(*binary)
 
 
 class Header(object):
@@ -98,16 +102,12 @@ class RawPacket(Packet):
 class EthernetPacket(Packet):
     name = "Ethernet"
 
-    @staticmethod
-    def _parse_mac(binary):
-        return "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}".format(*binary)
-
     @classmethod
     def upgrade(cls, packet):
         parsed = struct.unpack("!6s6sH", packet.body[:14])
         header = Header(
-            destination=EthernetPacket._parse_mac(parsed[0]),
-            source=EthernetPacket._parse_mac(parsed[1]),
+            destination=format_mac_address(parsed[0]),
+            source=format_mac_address(parsed[1]),
             protocol=socket.ntohs(parsed[2])
         )
         header.set_summary(
@@ -198,8 +198,10 @@ class IPv4Packet(Packet):
             # UDP
             return UDPPacket.upgrade(self)
 
+
 class IPv6Packet(Packet):
     name = "IPv6"
+
     @classmethod
     def upgrade(cls, packet):
         raw = packet.body
@@ -213,24 +215,20 @@ class IPv6Packet(Packet):
         source_address = socket.inet_ntop(version, parsed[6])
         destination_address = socket.inet_ntop(version, parsed[7])
         header = Header(
-            version = version,
-            traffic_class = traffic_class,
-            flow_label = flow_label,
-            payload_length = payload_length,
-            next_header = next_header,
-            hop_limit = hop_limit,
-            source_address = source_address,
-            destination_address = destination_address
+            version=version,
+            traffic_class=traffic_class,
+            flow_label=flow_label,
+            payload_length=payload_length,
+            next_header=next_header,
+            hop_limit=hop_limit,
+            source_address=source_address,
+            destination_address=destination_address
         )
 
         header.set_summary("Internet Protocol Version 6, Src: {}, Dst: {}".format(
-                header.source, header.destination
-            ))
+            header.source, header.destination
+        ))
         return cls(raw[header.length:], packet.headers + [header])
-
-
-
-
 
     @property
     def source(self):
@@ -401,7 +399,18 @@ class ICMPPacket(Packet):
             "checksum": checksum,
         }
         header = Header(**attributes)
+        header.set_summary("Internet Control Message Protocol, Type: {}, Code: {}".format(
+            type_, code
+        ))
         return cls(rest, packet.headers + [header])
+
+    @property
+    def source(self):
+        return "{}".format(self.headers[-2].source)
+
+    @property
+    def destination(self):
+        return "{}".format(self.headers[-2].destination)
 
 
 class UDPPacket(Packet):
@@ -442,34 +451,29 @@ class ARPPacket(Packet):
     @classmethod
     def upgrade(cls, packet):
         (hardware_type, protocol_type,
-         hardware_address_length, protocol_address_length,
-         op_code,
+         hardware_length, protocol_length,
+         operation,
          sender_hardware_address, sender_protocol_address,
-         target_hardware_address, target_protocol_address) = struct.unpack("2s2s1s1s2s6s4s6s4s", packet.body[:28])
+         target_hardware_address, target_protocol_address) = struct.unpack("HHBBH6s4s6s4s", packet.body[:28])
         data = packet.body[28:]
 
-        hardware_type = binascii.hexlify(hardware_type),
-        protocol_type = binascii.hexlify(protocol_type),
-        hardware_address_length = binascii.hexlify(hardware_address_length),
-        protocol_address_length = binascii.hexlify(protocol_address_length),
-        op_code = binascii.hexlify(op_code),  # 2 byte
-        sender_hardware_address = ':'.join(binascii.hexlify(sender_hardware_address)
-                                           .decode('ascii')[i:i + 2] for i in range(0, 12, 2))
-        sender_protocol_address = socket.inet_ntoa(sender_protocol_address),
-        target_hardware_address = ':'.join(binascii.hexlify(target_hardware_address)
-                                           .decode('ascii')[i:i + 2] for i in range(0, 12, 2)),
+        sender_hardware_address = format_mac_address(sender_hardware_address)
+        sender_protocol_address = socket.inet_ntoa(sender_protocol_address)
+        target_hardware_address = format_mac_address(target_hardware_address)
         target_protocol_address = socket.inet_ntoa(target_protocol_address)
+
         header = Header(
             hardware_type=hardware_type,
             protocol_type=protocol_type,
-            hardware_address_length=hardware_address_length,
-            protocol_address_length=protocol_address_length,
-            op_code=op_code,
+            hardware_address_length=hardware_length,
+            protocol_address_length=protocol_length,
+            operation=operation,
             sender_hardware_address=sender_hardware_address,
             source=sender_protocol_address,
             target_hardware_address=target_hardware_address,
             destination=target_protocol_address
         )
+        header.set_summary("Address Resolution Protocol, OPER: 0x{:02x}".format(operation))
 
         return cls(data, packet.headers + [header])
 
