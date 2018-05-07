@@ -138,7 +138,7 @@ class EthernetPacket(Packet):
             return IPv4Packet.upgrade(self)
         elif self.header.protocol == 0xdd86:
             # IPv6
-            return
+            return IPv6Packet.upgrade(self)
         elif self.header.protocol == 0xCC88:
             # IEEE Std 802.1AB - Link Layer Discovery Protocol (LLDP)
             return
@@ -190,6 +190,59 @@ class IPv4Packet(Packet):
     def _evolve(self):
         if self.header.protocol == 1:
             # ICMP
+            return ICMPPacket.upgrade(self)
+        elif self.header.protocol == 6:
+            # TCP
+            return TCPPacket.upgrade(self)
+        elif self.header.protocol == 0x11:
+            # UDP
+            return UDPPacket.upgrade(self)
+
+class IPv6Packet(Packet):
+    name = "IPv6"
+    @classmethod
+    def upgrade(cls, packet):
+        raw = packet.body
+        parsed = struct.unpack("!4sHBB16s16s", raw[:40])
+        version = parsed[0] >> 4
+        traffic_class = (parsed[0] & 0xF) * 8
+        flow_label = parsed[2] << 4
+        payload_length = parsed[3]
+        next_header = parsed[4]
+        hop_limit = parsed[5]
+        source_address = socket.inet_ntop(version, parsed[6])
+        destination_address = socket.inet_ntop(version, parsed[7])
+        header = Header(
+            version = version,
+            traffic_class = traffic_class,
+            flow_label = flow_label,
+            payload_length = payload_length,
+            next_header = next_header,
+            hop_limit = hop_limit,
+            source_address = source_address,
+            destination_address = destination_address
+        )
+
+        header.set_summary("Internet Protocol Version 6, Src: {}, Dst: {}".format(
+                header.source, header.destination
+            ))
+        return cls(raw[header.length:], packet.headers + [header])
+
+
+
+
+
+    @property
+    def source(self):
+        return self.header.source
+
+    @property
+    def destination(self):
+        return self.header.destination
+
+    def _evolve(self):
+        if self.header.protocol == 0x3A:
+            # ICMP protocol
             return ICMPPacket.upgrade(self)
         elif self.header.protocol == 6:
             # TCP
