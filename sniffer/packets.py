@@ -138,6 +138,7 @@ class EthernetPacket(Packet):
             return IPv4Packet.upgrade(self)
         elif self.header.protocol == 0xdd86:
             # IPv6
+            #return
             return IPv6Packet.upgrade(self)
         elif self.header.protocol == 0xCC88:
             # IEEE Std 802.1AB - Link Layer Discovery Protocol (LLDP)
@@ -204,33 +205,25 @@ class IPv6Packet(Packet):
     def upgrade(cls, packet):
         raw = packet.body
         parsed = struct.unpack("!4sHBB16s16s", raw[:40])
-        version = parsed[0] >> 4
-        traffic_class = (parsed[0] & 0xF) * 8
-        flow_label = parsed[2] << 4
+        version = parsed[0]
+        traffic_class = parsed[1]
+        flow_label = parsed[2]
         payload_length = parsed[3]
-        next_header = parsed[4]
-        hop_limit = parsed[5]
-        source_address = socket.inet_ntop(version, parsed[6])
-        destination_address = socket.inet_ntop(version, parsed[7])
+        source = socket.inet_ntop(version, parsed[4])
+        destination = socket.inet_ntop(version, parsed[5])
         header = Header(
             version = version,
             traffic_class = traffic_class,
             flow_label = flow_label,
             payload_length = payload_length,
-            next_header = next_header,
-            hop_limit = hop_limit,
-            source_address = source_address,
-            destination_address = destination_address
+            source = source,
+            destination = destination
         )
 
         header.set_summary("Internet Protocol Version 6, Src: {}, Dst: {}".format(
                 header.source, header.destination
             ))
         return cls(raw[header.length:], packet.headers + [header])
-
-
-
-
 
     @property
     def source(self):
