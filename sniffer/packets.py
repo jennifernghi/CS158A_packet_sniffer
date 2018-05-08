@@ -198,14 +198,77 @@ class IPv4Packet(Packet):
             return UDPPacket.upgrade(self)
 
 
+def tlv(data):
+    while data:
+        try:
+            key, length = struct.unpack("!BB", data[:2])
+            value = struct.unpack("!%ds" % length, data[2:2 + length])
+        except struct.error:
+            logger.exception("Unaligned TLV struct found: {}", data)
+        yield key, value[0]
+        data = data[4 + length:]
+
+
 class IPv6Packet(Packet):
     name = "IPv6"
+
+    @staticmethod
+    def parse_options(options, raw, next_header):
+        if next_header == 0 or next_header == 60:
+            # Hop-by-hop options
+            (next_next_header, length) = struct.unpack("!BB", raw[:2])
+            _length = length + 6  # real length, as first 4 octet is assumed
+            header = ("Hop-by-Hop" if next_header == 0 else "Destination", Header(
+                next_header=next_next_header,
+                length=length,
+                options=list(tlv(raw[2:_length]))
+            ))
+
+            return IPv6Packet.parse_options(
+                options + [header], raw[_length:], next_next_header
+            )
+        elif next_header == 43:
+            # Routing
+            (next_next_header, length, type_, left) = struct.unpack("!BBBB", raw[:4])
+            _length = 4 + length
+            header = ("Routing", Header(
+                next_header=next_next_header,
+                length=length,
+                routing_type=type_,
+                segments_left=left,
+                data=raw[4:4 + _length]
+            ))
+
+            return IPv6Packet.parse_options(
+                options + [header], raw[4 + _length:], next_next_header
+            )
+        elif next_header == 44:
+            # Fragment
+            (next_next_header, reserved, offset, identification) = struct.unpack("!BBHI", raw[:8])
+            m_flag = raw & 0x1
+            res = (raw >> 1) & 0x3
+            offset = offset >> 3
+            header = ("Fragment", Header(
+                next_header=next_next_header,
+                reserved=reserved,
+                offset=offset,
+                res=res,
+                m_flag=m_flag,
+            ))
+
+            return IPv6Packet.parse_options(
+                options + [header], raw[8:], next_next_header
+            )
+        elif next_header == 51:
+            pass
+        elif next_header == 50:
+            pass
+
+        return (options, raw, next_header)
 
     @classmethod
     def upgrade(cls, packet):
         raw = packet.body
-        print(repr(raw))
-        # parsed = struct.unpack("!4sHBB16s16s", raw[:40])
         parsed = struct.unpack("!BBHHBB16s16s", raw[:40])
         version = parsed[0] >> 4
         traffic_class = (parsed[0] & 0xF << 4) & (parsed[1] >> 4)
@@ -215,22 +278,24 @@ class IPv6Packet(Packet):
         hop_limit = parsed[5]
         source = socket.inet_ntop(socket.AF_INET6, parsed[6])
         destination = socket.inet_ntop(socket.AF_INET6, parsed[7])
+        (options, raw, _protocol) = IPv6Packet.parse_options([], raw[40:], next_header)
         header = Header(
             version=version,
             traffic_class=traffic_class,
             flow_label=flow_label,
             payload_length=payload_length,
             next_header=next_header,
+            _protocol=_protocol,
             hop_limit=hop_limit,
             source=source,
-            destination=destination
+            destination=destination,
+            options=dict(options),
         )
-        print(header)
-
         header.set_summary("Internet Protocol Version 6, Src: {}, Dst: {}".format(
             header.source, header.destination
         ))
-        return cls(raw[40:], packet.headers + [header])
+
+        return cls(raw, packet.headers + [header])
 
     @property
     def source(self):
@@ -241,13 +306,13 @@ class IPv6Packet(Packet):
         return self.header.destination
 
     def _evolve(self):
-        if self.header.next_header == 0x3A:
+        if self.header._protocol == 0x3A:
             # ICMP protocol
             return ICMPPacket.upgrade(self)
-        elif self.header.next_header == 6:
+        elif self.header._protocol == 6:
             # TCP
             return TCPPacket.upgrade(self)
-        elif self.header.next_header == 0x11:
+        elif self.header._protocol == 0x11:
             # UDP
             return UDPPacket.upgrade(self)
 
