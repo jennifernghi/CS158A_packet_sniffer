@@ -22,7 +22,6 @@ export default class PacketDetail extends React.Component {
   }
 
   renderHeader() {
-    console.log(this.props);
     return (<ul className="packet-header-list">
       {this.props.packet.headers.map((header, index) => (<PacketHeader header={header} key={index} />))}
     </ul>);

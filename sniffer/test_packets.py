@@ -2,7 +2,7 @@
 
 import unittest
 
-from .packets import RawPacket, TCPPacket, HTTPResponsePacket, HTTPRequestPacket
+from .packets import RawPacket, TCPPacket, HTTPResponsePacket, HTTPRequestPacket, ARPPacket
 
 
 class TestRawPacket(unittest.TestCase):
@@ -20,8 +20,6 @@ class TestRawPacket(unittest.TestCase):
         result = packet.evolve()
 
         self.assertIsInstance(result, HTTPRequestPacket)
-        print(result.raw)
-        print(result.destination)
 
     def test_evolve_http_response(self):
         raw = b'<\x15\xc2\xde\xdb\xf2\\\x93\xa2\x1e\xd0]\x08\x00E\x00\x01\xb2.\x0f@\x00@\x06\x86\xdb\xc0\xa8\x01\xc3\xc0\xa8\x01H\xa3H\xfd\x1e\x9a\xb0\xc4gO\xdf.Q\x80\x18\x04\x10\xff\x8f\x00\x00\x01\x01\x08\ni\t\xa6\xbdO;T\xf1HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 310\r\n\r\n{"accountReq":"FREE","activeUser":"","availability":"NOT-AUTHORIZED","brandDisplayName":"sony_tv","deviceID":"25050c337113f16ad02fda89d9675991d3078170","deviceType":"GAMECONSOLE","modelDisplayName":"ps4","publicKey":"","remoteName":"PS4-370","spotifyError":0,"status":101,"statusString":"OK","version":"2.2.2"}'
@@ -29,3 +27,15 @@ class TestRawPacket(unittest.TestCase):
         packet = RawPacket(raw)
         result = packet.evolve()
         self.assertIsInstance(result, HTTPResponsePacket)
+
+    def test_evolve_arp(self):
+        raw = b'\xff\xff\xff\xff\xff\xff0\xe4\xdb9;\xc0\x08\x06\x00\x01\x08\x00\x06\x04\x00\x01d\xb0\xa63\xc7\xbd\n\xfa\x99\xa3\x00\x00\x00\x00\x00\x00\n\xfa\x99\xa3'
+
+        packet = RawPacket(raw)
+        result = packet.evolve()
+        self.assertIsInstance(result, ARPPacket)
+
+        print(result.destination)
+
+        import ipdb
+        ipdb.set_trace()

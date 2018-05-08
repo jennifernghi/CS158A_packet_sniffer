@@ -8,6 +8,10 @@ pre {
   font-family: 'Fira Mono', monospace;
 }
 
+body {
+  overflow-x: hidden;
+}
+
 .filter-bar {
   height: 50px;
   width: 100%;
@@ -34,6 +38,10 @@ pre {
   margin: 0;
   padding: 0;
   width: 100%;
+}
+
+.packet-list.selected {
+  margin-bottom: 50vh;
 }
 
 .packet-list tr {
@@ -101,18 +109,20 @@ pre {
   left: 0%;
 }
 
-.packet-raw pre {
+.packet-raw pre, .packet-attributes .packet-header-list {
   overflow-x: scroll;
   position: absolute;
   top: 50px;
   bottom: 10px;
-  width: 100%;
+  left: 20px;
+  right: 20px;
 }
 
 .packet-header-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  padding-right: 10px;
 }
 
 .packet-header-summary {
@@ -123,4 +133,45 @@ pre {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  position: sticky;
+  top: 0;
+  z-index: 0;
+}
+
+.packet-header-detail {
+}
+
+.packet-header-detail ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.packet-header-detail ul li {
+  height: 32px;
+  line-height: 32px;
+  border-bottom: 1px solid #DEDEDE;
+  font-size: 0;
+}
+
+.packet-header-detail ul li strong, .packet-header-detail ul li span {
+  display: inline-block;
+  padding: 0 10px;
+  box-sizing: border-box;
+  font-size: 14px;
+  vertical-align: top;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.packet-header-detail ul li strong {
+  width: 20%;
+  background-color: #F6F6F6;
+}
+
+.packet-header-detail ul li span {
+  width: 80%;
 }
