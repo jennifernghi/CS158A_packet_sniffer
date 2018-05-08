@@ -134,7 +134,7 @@ class EthernetPacket(Packet):
             return
         elif self.header.protocol == 0x0008:
             # IPv4
-            return# IPv4Packet.upgrade(self)
+            return IPv4Packet.upgrade(self)
         elif self.header.protocol == 0xdd86:
             # IPv6
             #return
@@ -144,7 +144,7 @@ class EthernetPacket(Packet):
             return
         elif self.header.protocol == 0x0608:
             # ARP
-            return #ARPPacket.upgrade(self)
+            return ARPPacket.upgrade(self)
         return None
 
 
