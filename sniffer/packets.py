@@ -5,7 +5,6 @@ import socket
 import struct
 import logging
 from io import BytesIO
-from binascii import hexlify
 from http.client import HTTPResponse
 from http.server import BaseHTTPRequestHandler
 
@@ -382,7 +381,9 @@ class HTTPResponsePacket(Packet):
 
     @property
     def info(self):
-        return "Response: {} {}  ({})".format(self.header.status, self.header.reason, self.header.headers.get("Content-Type", ""))
+        return "Response: {} {}  ({})".format(
+            self.header.status, self.header.reason, self.header.headers.get("Content-Type", "")
+        )
 
 
 class ICMPPacket(Packet):
