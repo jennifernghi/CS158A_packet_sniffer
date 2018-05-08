@@ -34,8 +34,3 @@ class TestRawPacket(unittest.TestCase):
         packet = RawPacket(raw)
         result = packet.evolve()
         self.assertIsInstance(result, ARPPacket)
-
-        print(result.destination)
-
-        import ipdb
-        ipdb.set_trace()

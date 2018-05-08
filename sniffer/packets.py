@@ -137,7 +137,6 @@ class EthernetPacket(Packet):
             return IPv4Packet.upgrade(self)
         elif self.header.protocol == 0xdd86:
             # IPv6
-            #return
             return IPv6Packet.upgrade(self)
         elif self.header.protocol == 0xCC88:
             # IEEE Std 802.1AB - Link Layer Discovery Protocol (LLDP)
@@ -205,26 +204,33 @@ class IPv6Packet(Packet):
     @classmethod
     def upgrade(cls, packet):
         raw = packet.body
-        parsed = struct.unpack("!4sHBB16s16s", raw[:40])
-        version = parsed[0]
-        traffic_class = parsed[1]
-        flow_label = parsed[2]
+        print(repr(raw))
+        # parsed = struct.unpack("!4sHBB16s16s", raw[:40])
+        parsed = struct.unpack("!BBHHBB16s16s", raw[:40])
+        version = parsed[0] >> 4
+        traffic_class = (parsed[0] & 0xF << 4) & (parsed[1] >> 4)
+        flow_label = (parsed[1] << 16) & parsed[2]
         payload_length = parsed[3]
-        source = socket.inet_ntop(socket.AF_INET6, parsed[4])
-        destination = socket.inet_ntop(socket.AF_INET6, parsed[5])
+        next_header = parsed[4]
+        hop_limit = parsed[5]
+        source = socket.inet_ntop(socket.AF_INET6, parsed[6])
+        destination = socket.inet_ntop(socket.AF_INET6, parsed[7])
         header = Header(
-            version = version,
-            traffic_class = traffic_class,
-            flow_label = flow_label,
-            payload_length = payload_length,
-            source = source,
-            destination = destination
+            version=version,
+            traffic_class=traffic_class,
+            flow_label=flow_label,
+            payload_length=payload_length,
+            next_header=next_header,
+            hop_limit=hop_limit,
+            source=source,
+            destination=destination
         )
+        print(header)
 
         header.set_summary("Internet Protocol Version 6, Src: {}, Dst: {}".format(
             header.source, header.destination
         ))
-        return cls(raw[header.length:], packet.headers + [header])
+        return cls(raw[40:], packet.headers + [header])
 
     @property
     def source(self):
@@ -235,13 +241,13 @@ class IPv6Packet(Packet):
         return self.header.destination
 
     def _evolve(self):
-        if self.header.protocol == 0x3A:
+        if self.header.next_header == 0x3A:
             # ICMP protocol
             return ICMPPacket.upgrade(self)
-        elif self.header.protocol == 6:
+        elif self.header.next_header == 6:
             # TCP
             return TCPPacket.upgrade(self)
-        elif self.header.protocol == 0x11:
+        elif self.header.next_header == 0x11:
             # UDP
             return UDPPacket.upgrade(self)
 
