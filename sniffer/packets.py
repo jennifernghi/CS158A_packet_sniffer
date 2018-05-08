@@ -135,7 +135,7 @@ class EthernetPacket(Packet):
             return
         elif self.header.protocol == 0x0008:
             # IPv4
-            return IPv4Packet.upgrade(self)
+            return# IPv4Packet.upgrade(self)
         elif self.header.protocol == 0xdd86:
             # IPv6
             #return
@@ -145,7 +145,7 @@ class EthernetPacket(Packet):
             return
         elif self.header.protocol == 0x0608:
             # ARP
-            return ARPPacket.upgrade(self)
+            return #ARPPacket.upgrade(self)
         return None
 
 
@@ -211,8 +211,8 @@ class IPv6Packet(Packet):
         traffic_class = parsed[1]
         flow_label = parsed[2]
         payload_length = parsed[3]
-        source = socket.inet_ntop(version, parsed[4])
-        destination = socket.inet_ntop(version, parsed[5])
+        source = socket.inet_ntop(socket.AF_INET6, parsed[4])
+        destination = socket.inet_ntop(socket.AF_INET6, parsed[5])
         header = Header(
             version = version,
             traffic_class = traffic_class,
@@ -220,7 +220,6 @@ class IPv6Packet(Packet):
             payload_length = payload_length,
             source = source,
             destination = destination
-
         )
 
         header.set_summary("Internet Protocol Version 6, Src: {}, Dst: {}".format(
